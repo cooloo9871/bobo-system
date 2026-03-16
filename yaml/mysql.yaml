@@ -39,7 +39,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: mysql
-          image: mysql/mysql-server:8.0.32
+          image: quay.io/cooloo9871/mysql:latest
           env:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
@@ -70,4 +70,3 @@ spec:
   ports:
   - port: 3306
     targetPort: 3306
-
