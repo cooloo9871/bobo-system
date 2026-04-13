@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bobo — MySQL 管理介面</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0c0f;--surface:#12151a;--surface2:#1a1e26;
+  --border:#252b36;--border2:#2e3547;
+  --accent:#00e5a0;--accent2:#0066ff;
+  --danger:#ff3f5b;--warn:#ffb800;--info:#7c6fff;
+  --text:#e8ecf4;--text2:#8891a8;--text3:#4a5368;
+  --mono:'DM Mono',monospace;--sans:'Syne',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;display:flex;flex-direction:column;}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;gap:16px;padding:0 24px;height:56px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.logo{font-weight:800;font-size:22px;letter-spacing:-1px;color:var(--accent);display:flex;align-items:center;gap:8px;}
+.logo svg{width:26px;height:26px;}
+.logo-sub{color:var(--text2);font-size:13px;font-weight:400;margin-left:2px;}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.conn-badge{display:flex;align-items:center;gap:6px;padding:4px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:100px;font-size:12px;font-family:var(--mono);color:var(--text2);}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);transition:background .3s;}
+.conn-dot.on{background:var(--accent);box-shadow:0 0 6px var(--accent);}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden;height:calc(100vh - 56px);}
+
+/* SIDEBAR */
+.sidebar{width:265px;min-width:265px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-top{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);}
+.sidebar-top-label{font-size:11px;font-family:var(--mono);color:var(--text3);letter-spacing:1px;text-transform:uppercase;}
+.sidebar-top-actions{display:flex;gap:4px;}
+.sidebar-list{flex:1;overflow-y:auto;padding:4px 0;}
+.sidebar-list::-webkit-scrollbar{width:4px;}
+.sidebar-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+
+.db-header{display:flex;align-items:center;gap:0;padding:6px 10px 6px 12px;cursor:pointer;user-select:none;border-radius:6px;margin:2px 6px;}
+.db-header:hover{background:rgba(255,255,255,.04);}
+.db-header .db-arrow{font-size:9px;color:var(--text3);transition:transform .2s;margin-right:6px;}
+.db-header .db-arrow.open{transform:rotate(90deg);}
+.db-header .db-name{font-size:13px;font-weight:600;color:var(--text2);flex:1;}
+.db-header:hover .db-name{color:var(--text);}
+.db-header .db-actions{display:flex;gap:2px;opacity:0;transition:opacity .1s;}
+.db-header:hover .db-actions{opacity:1;}
+
+.tbl-row{display:flex;align-items:center;gap:6px;padding:6px 10px 6px 34px;font-size:12px;font-family:var(--mono);color:var(--text2);cursor:pointer;transition:all .12s;border-left:2px solid transparent;margin:1px 6px;border-radius:4px;}
+.tbl-row:hover{color:var(--text);background:rgba(255,255,255,.03);}
+.tbl-row.active{color:var(--accent);background:rgba(0,229,160,.06);border-left-color:var(--accent);}
+.tbl-row .tbl-actions{margin-left:auto;display:flex;gap:2px;opacity:0;}
+.tbl-row:hover .tbl-actions{opacity:1;}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* CONNECT PANEL */
+.connect-wrap{display:flex;align-items:center;justify-content:center;flex:1;padding:40px;}
+.connect-card{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+.card-head{padding:22px 26px 18px;border-bottom:1px solid var(--border);}
+.card-head h2{font-size:19px;font-weight:700;margin-bottom:3px;}
+.card-head p{font-size:13px;color:var(--text2);}
+.card-body{padding:22px 26px;display:flex;flex-direction:column;gap:13px;}
+.card-foot{padding:0 26px 22px;display:flex;gap:10px;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:12px;color:var(--text2);font-family:var(--mono);}
+.fi{background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 11px;border-radius:8px;font-family:var(--mono);font-size:13px;outline:none;transition:border-color .15s;width:100%;}
+.fi:focus{border-color:var(--accent);}
+.fi::placeholder{color:var(--text3);}
+.fi-sm{padding:5px 9px;font-size:12px;border-radius:6px;}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:8px;font-family:var(--sans);font-weight:600;font-size:13px;cursor:pointer;border:none;outline:none;transition:all .15s;}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important;}
+.btn-primary{background:var(--accent);color:#000;}
+.btn-primary:hover:not(:disabled){background:#00ffb3;transform:translateY(-1px);}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border2);}
+.btn-secondary:hover:not(:disabled){background:var(--border2);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-danger:hover:not(:disabled){background:#ff6070;}
+.btn-warn{background:var(--warn);color:#000;}
+.btn-warn:hover:not(:disabled){background:#ffc929;}
+.btn-info{background:var(--info);color:#fff;}
+.btn-info:hover:not(:disabled){background:#9588ff;}
+.btn-sm{padding:5px 11px;font-size:12px;border-radius:6px;}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:5px;}
+.btn-icon{width:26px;height:26px;padding:0;background:transparent;border:1px solid transparent;color:var(--text3);border-radius:5px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all .12s;}
+.btn-icon:hover{background:var(--surface2);color:var(--text);border-color:var(--border2);}
+.btn-icon.d:hover{background:rgba(255,63,91,.12);color:var(--danger);border-color:rgba(255,63,91,.3);}
+
+/* TABLE PANEL */
+.table-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* TABS */
+.tab-bar{display:flex;align-items:center;gap:0;padding:0 20px;background:var(--surface);border-bottom:1px solid var(--border);}
+.tab{padding:10px 16px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;letter-spacing:.3px;}
+.tab:hover{color:var(--text2);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* TOOLBAR */
+.toolbar{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);background:var(--surface);flex-wrap:wrap;}
+.tbl-name{font-size:14px;font-weight:700;font-family:var(--mono);color:var(--text);}
+.tbl-count{font-size:12px;color:var(--text3);font-family:var(--mono);margin-right:auto;}
+.search-box{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;padding:0 10px;}
+.search-box input{background:none;border:none;outline:none;font-family:var(--mono);font-size:12px;color:var(--text);padding:5px 0;width:170px;}
+.search-box input::placeholder{color:var(--text3);}
+
+/* DATA TABLE */
+.data-wrap{flex:1;overflow:auto;}
+.data-wrap::-webkit-scrollbar{width:5px;height:5px;}
+.data-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.dtable{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;}
+.dtable thead{position:sticky;top:0;z-index:10;}
+.dtable th{background:var(--surface);border-bottom:1px solid var(--border2);padding:9px 13px;text-align:left;font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;}
+.dtable th.pk{color:var(--warn);}
+.dtable td{padding:8px 13px;border-bottom:1px solid rgba(255,255,255,.035);color:var(--text2);white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis;}
+.dtable td.pk-v{color:var(--warn);}
+.dtable td.null-v{color:var(--text3);font-style:italic;}
+.dtable tr:hover td{background:rgba(255,255,255,.025);color:var(--text);}
+.row-act{display:flex;gap:3px;opacity:0;}
+tr:hover .row-act{opacity:1;}
+td.act-cell{padding:3px 8px;min-width:72px;}
+
+/* PAGINATION */
+.pag{display:flex;align-items:center;gap:6px;padding:9px 18px;border-top:1px solid var(--border);background:var(--surface);font-size:12px;font-family:var(--mono);color:var(--text2);}
+.pg-btn{width:26px;height:26px;background:var(--surface2);border:1px solid var(--border2);color:var(--text2);border-radius:5px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;justify-content:center;transition:all .12s;}
+.pg-btn:hover:not(:disabled){background:var(--border2);color:var(--text);}
+.pg-btn:disabled{opacity:.3;cursor:not-allowed;}
+.pg-btn.cur{background:var(--accent);color:#000;border-color:var(--accent);}
+.pg-info{margin-left:auto;color:var(--text3);}
+
+/* SQL EDITOR */
+.sql-bar{display:flex;border-bottom:1px solid var(--border);background:var(--bg);}
+.sql-editor{flex:1;background:var(--bg);border:none;outline:none;color:var(--accent);font-family:var(--mono);font-size:12px;padding:9px 14px;resize:none;height:38px;line-height:1.5;}
+.sql-run{padding:0 18px;background:var(--accent);color:#000;border:none;font-family:var(--sans);font-size:12px;font-weight:700;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:5px;}
+.sql-run:hover{background:#00ffb3;}
+.sql-result-bar{padding:7px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11px;font-family:var(--mono);color:var(--text3);}
+
+/* STRUCTURE TAB */
+.struct-wrap{flex:1;overflow:auto;padding:16px 20px;}
+.struct-wrap::-webkit-scrollbar{width:5px;}
+.struct-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.section-title{font-size:12px;font-weight:700;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;}
+.stbl{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono);}
+.stbl th{background:var(--surface2);padding:7px 12px;text-align:left;font-size:10px;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;border-bottom:1px solid var(--border);}
+.stbl td{padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--text2);}
+.stbl tr:hover td{background:rgba(255,255,255,.02);}
+.badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;}
+.badge-pk{background:rgba(255,184,0,.15);color:var(--warn);}
+.badge-uni{background:rgba(124,111,255,.15);color:var(--info);}
+.badge-mul{background:rgba(0,102,255,.15);color:var(--accent2);}
+.badge-nn{background:rgba(0,229,160,.1);color:var(--accent);}
+.badge-ai{background:rgba(255,63,91,.15);color:var(--danger);}
+
+/* DDL PANEL */
+.ddl-wrap{flex:1;overflow:auto;padding:16px 20px;}
+.ddl-box{background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:16px;font-family:var(--mono);font-size:12px;color:var(--accent);white-space:pre-wrap;word-break:break-all;line-height:1.7;}
+
+/* INDEX PANEL */
+.idx-wrap{flex:1;overflow:auto;padding:16px 20px;}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.open{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;width:560px;max-width:96vw;max-height:88vh;display:flex;flex-direction:column;transform:translateY(16px) scale(.97);transition:transform .2s;overflow:hidden;}
+.overlay.open .modal{transform:translateY(0) scale(1);}
+.modal.wide{width:720px;}
+.modal.sm{width:400px;}
+.mhead{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.mhead h3{font-size:15px;font-weight:700;}
+.mbody{padding:18px 22px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:11px;}
+.mbody::-webkit-scrollbar{width:4px;}
+.mbody::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+.mfoot{padding:12px 22px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;}
+.mclose{width:26px;height:26px;background:none;border:none;color:var(--text2);cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;border-radius:5px;transition:all .12s;}
+.mclose:hover{background:var(--surface2);color:var(--text);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.form-field{display:flex;flex-direction:column;gap:4px;}
+.form-label{font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase;}
+.form-label .req{color:var(--warn);margin-left:3px;}
+
+/* CREATE TABLE — COLUMNS BUILDER */
+.col-builder{display:flex;flex-direction:column;gap:6px;}
+.col-row{display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;}
+.col-row .fi{padding:5px 8px;font-size:12px;}
+.col-row select.fi{cursor:pointer;}
+.col-flag{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none;white-space:nowrap;}
+.col-flag input{cursor:pointer;}
+.col-add-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px;border:1px dashed var(--border2);border-radius:8px;color:var(--text3);font-size:12px;cursor:pointer;transition:all .15s;}
+.col-add-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* TOAST */
+.toast-wrap{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:7px;z-index:300;}
+.toast{display:flex;align-items:center;gap:9px;padding:10px 15px;background:var(--surface2);border:1px solid var(--border2);border-radius:9px;font-size:13px;animation:tIn .18s ease;min-width:220px;box-shadow:0 8px 24px rgba(0,0,0,.45);}
+.toast.ok{border-color:rgba(0,229,160,.3);}
+.toast.err{border-color:rgba(255,63,91,.3);}
+.toast.warn{border-color:rgba(255,184,0,.3);}
+@keyframes tIn{from{transform:translateX(16px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* EMPTY */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:70px 40px;color:var(--text3);gap:10px;}
+.empty svg{width:44px;height:44px;opacity:.25;}
+.empty h3{font-size:15px;color:var(--text2);}
+.empty p{font-size:12px;text-align:center;max-width:260px;}
+
+.history-item{display:flex;align-items:center;gap:0;padding:10px 14px;cursor:pointer;transition:background .12s;border-bottom:1px solid var(--border);}
+.history-item:last-child{border-bottom:none;}
+.history-item:hover{background:rgba(255,255,255,.04);}
+.history-item-info{flex:1;min-width:0;}
+.history-item-host{font-size:13px;font-weight:600;color:var(--text);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.history-item-meta{font-size:11px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.history-item-time{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap;margin-left:8px;}
+.history-del{opacity:0;transition:opacity .1s;flex-shrink:0;margin-left:4px;}
+.history-item:hover .history-del{opacity:1;}
+.logo:hover .logo-sub{color:var(--accent);}
+.dbtype-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:100px;letter-spacing:.3px;}
+.dbtype-mysql{background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.3);}
+.dbtype-pg{background:rgba(100,149,237,.2);color:#6495ed;border:1px solid rgba(100,149,237,.3);}
+.sidebar-db-type{font-size:9px;font-family:var(--mono);color:var(--text3);padding:4px 14px 2px;letter-spacing:.5px;text-transform:uppercase;}
+/* SQL WRITE RESULT */
+.sql-write-result{padding:16px 20px;font-family:var(--mono);font-size:13px;color:var(--accent);}
+/* SPINNER */
+.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.1);border-top-color:var(--accent);border-radius:50%;animation:sp .6s linear infinite;display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.hidden{display:none!important;}
+*{scrollbar-width:thin;scrollbar-color:var(--border2) transparent;}
+select.fi option{background:var(--surface2);}
+
+/* DIVIDER */
+.divider{height:1px;background:var(--border);margin:4px 0;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo" onclick="goHome()" style="cursor:pointer" title="回主頁 / 切換連線">
+    <svg viewBox="0 0 26 26" fill="none"><ellipse cx="13" cy="8" rx="10" ry="4" stroke="currentColor" stroke-width="1.5"/><path d="M3 8v10c0 2.21 4.48 4 10 4s10-1.79 10-4V8" stroke="currentColor" stroke-width="1.5"/><path d="M3 13c0 2.21 4.48 4 10 4s10-1.79 10-4" stroke="currentColor" stroke-width="1.5"/></svg>
+    bobo<span class="logo-sub">db</span>
+  </div>
+  <div class="topbar-right">
+    <div class="conn-badge"><div class="conn-dot" id="connDot"></div><span id="connLabel">未連接</span></div>
+    <button class="btn btn-secondary btn-sm hidden" id="switchConnBtn" onclick="goHome()" title="切換到其他連線">⇄ 切換連線</button>
+    <button class="btn btn-secondary btn-sm hidden" id="disconnBtn" onclick="disconnect()">✕ 中斷</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <span class="sidebar-top-label" id="sidebarDbTypeLabel">資料庫</span>
+      <div class="sidebar-top-actions">
+        <button class="btn-icon hidden" id="btnNewDb" title="新增資料庫" onclick="openNewDbModal()">＋</button>
+        <button class="btn-icon hidden" id="btnRefresh" title="重新整理" onclick="loadDatabases()">↻</button>
+      </div>
+    </div>
+    <div class="sidebar-list" id="sidebarList">
+      <div class="empty" style="padding:36px 16px;"><p style="font-size:11px">連線後顯示</p></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="mainPanel">
+
+    <!-- CONNECT -->
+    <div class="connect-wrap" id="connectPanel">
+      <div style="width:100%;max-width:860px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+
+        <!-- CONNECT FORM -->
+        <div class="connect-card" style="flex:1;min-width:320px;">
+          <div class="card-head">
+            <h2 id="connectTitle">連接資料庫</h2>
+            <p>選擇資料庫類型並輸入連線資訊</p>
+          </div>
+          <div class="card-body">
+            <!-- DB TYPE TOGGLE -->
+            <div class="field">
+              <label>資料庫類型</label>
+              <div style="display:flex;gap:8px;">
+                <button id="btnTypeMySQL" class="btn btn-primary btn-sm" style="flex:1" onclick="setDbType('mysql')">🐬 MySQL</button>
+                <button id="btnTypePG" class="btn btn-secondary btn-sm" style="flex:1" onclick="setDbType('pg')">🐘 PostgreSQL</button>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field"><label>Host</label><input class="fi" id="cfgHost" value="localhost"></div>
+              <div class="field"><label>Port</label><input class="fi" id="cfgPort" value="3306" type="number"></div>
+            </div>
+            <div class="field"><label>Username</label><input class="fi" id="cfgUser" value="root"></div>
+            <div class="field"><label>Password</label><input class="fi" id="cfgPass" type="password" placeholder="留空表示無密碼"></div>
+            <div class="field" id="cfgDbWrap"><label id="cfgDbLabel">預設資料庫（選填）</label><input class="fi" id="cfgDb" placeholder="不填則列出全部"></div>
+            <div class="field hidden" id="cfgSslWrap">
+              <label class="col-flag"><input type="checkbox" id="cfgSsl"> SSL 連線（for RDS / Cloud）</label>
+            </div>
+          </div>
+          <div class="card-foot">
+            <button class="btn btn-primary" id="connectBtn" style="flex:1" onclick="connect()">🔌 連接資料庫</button>
+          </div>
+        </div>
+
+        <!-- HISTORY PANEL -->
+        <div class="connect-card" style="flex:1;min-width:280px;max-width:380px;" id="historyPanel">
+          <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;">
+            <div><h2>連線歷史</h2><p>點選即可快速重新連接</p></div>
+            <button class="btn-icon d" onclick="clearHistory()" title="清除所有歷史" style="flex-shrink:0">🗑</button>
+          </div>
+          <div id="historyList" style="max-height:320px;overflow-y:auto;padding:8px 0;">
+            <div class="empty" style="padding:30px 20px;"><p>尚無連線紀錄</p></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TABLE PANEL -->
+    <div class="table-panel hidden" id="tablePanel">
+      <div class="sql-bar">
+        <textarea class="sql-editor" id="sqlEditor" placeholder="輸入任意 SQL（Ctrl+Enter 執行）— SELECT / INSERT / UPDATE / DELETE / CREATE / DROP ..."></textarea>
+        <button class="sql-run" onclick="runSQL()">▶ 執行</button>
+      </div>
+      <div class="tab-bar" id="tabBar">
+        <div class="tab active" data-tab="data" onclick="switchTab('data')">資料</div>
+        <div class="tab" data-tab="structure" onclick="switchTab('structure')">結構</div>
+        <div class="tab" data-tab="indexes" onclick="switchTab('indexes')">索引</div>
+        <div class="tab" data-tab="ddl" onclick="switchTab('ddl')">DDL</div>
+      </div>
+
+      <!-- DATA TAB -->
+      <div id="tab-data" class="tab-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="toolbar">
+          <span class="tbl-name" id="curTblName">—</span>
+          <span class="tbl-count" id="tblCount"></span>
+          <div class="search-box">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4.5"/><path d="m11 11 2.5 2.5"/></svg>
+            <input type="text" id="searchInput" placeholder="搜尋..." oninput="onSearch()">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openInsertModal()">＋ 新增資料</button>
+        </div>
+        <div id="sqlResultBar" class="sql-result-bar hidden"></div>
+        <div class="data-wrap" id="dataWrap"><div class="empty"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="14" width="36" height="28" rx="3"/><path d="M6 22h36M16 14V10M32 14V10"/></svg><h3>選擇資料表</h3><p>從左側點選資料表</p></div></div>
+        <div class="pag hidden" id="pag"></div>
+      </div>
+
+      <!-- STRUCTURE TAB -->
+      <div id="tab-structure" class="tab-content hidden" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="struct-wrap" id="structWrap"></div>
+      </div>
+
+      <!-- INDEXES TAB -->
+      <div id="tab-indexes" class="tab-content hidden" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="idx-wrap" id="idxWrap"></div>
+      </div>
+
+      <!-- DDL TAB -->
+      <div id="tab-ddl" class="tab-content hidden" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="ddl-wrap" id="ddlWrap"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ MODALS ═══════════════════════════════════════════ -->
+
+<!-- NEW DB -->
+<div class="overlay" id="newDbOverlay" onclick="closeOverlay('newDbOverlay',event)">
+<div class="modal sm">
+  <div class="mhead"><h3 id="newDbModalTitle">建立資料庫</h3><button class="mclose" onclick="closeModal('newDbOverlay')">✕</button></div>
+  <div class="mbody">
+    <div class="form-field"><label class="form-label">資料庫名稱 <span class="req">*</span></label><input class="fi" id="newDbName" placeholder="例：my_database"></div>
+    <div class="form-row" id="newDbCharsetRow">
+      <div class="form-field"><label class="form-label">字元集</label>
+        <select class="fi" id="newDbCharset"><option value="utf8mb4" selected>utf8mb4</option><option value="utf8">utf8</option><option value="latin1">latin1</option></select>
+      </div>
+      <div class="form-field"><label class="form-label">Collation</label>
+        <select class="fi" id="newDbCollation"><option value="utf8mb4_unicode_ci" selected>utf8mb4_unicode_ci</option><option value="utf8mb4_general_ci">utf8mb4_general_ci</option><option value="utf8_general_ci">utf8_general_ci</option></select>
+      </div>
+    </div>
+  </div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('newDbOverlay')">取消</button><button class="btn btn-primary" id="createDbBtn" onclick="createDatabase()">建立</button></div>
+</div></div>
+
+<!-- DROP DB -->
+<div class="overlay" id="dropDbOverlay" onclick="closeOverlay('dropDbOverlay',event)">
+<div class="modal sm">
+  <div class="mhead"><h3>⚠️ 刪除資料庫</h3><button class="mclose" onclick="closeModal('dropDbOverlay')">✕</button></div>
+  <div class="mbody"><p style="color:var(--text2);font-size:13px">確定要刪除資料庫 <strong id="dropDbName" style="color:var(--danger)"></strong> 嗎？<br>此操作將刪除所有資料表與資料，<strong>無法復原</strong>！</p></div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('dropDbOverlay')">取消</button><button class="btn btn-danger" id="dropDbBtn">刪除資料庫</button></div>
+</div></div>
+
+<!-- NEW TABLE -->
+<div class="overlay" id="newTblOverlay" onclick="closeOverlay('newTblOverlay',event)">
+<div class="modal wide">
+  <div class="mhead"><h3>建立資料表</h3><button class="mclose" onclick="closeModal('newTblOverlay')">✕</button></div>
+  <div class="mbody">
+    <div class="form-row">
+      <div class="form-field"><label class="form-label">資料表名稱 <span class="req">*</span></label><input class="fi" id="newTblName" placeholder="例：users"></div>
+      <div class="form-field"><label class="form-label">資料庫</label><input class="fi" id="newTblDb" readonly style="opacity:.6"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" id="newTblEngineWrap"><label class="form-label">引擎</label>
+        <select class="fi" id="newTblEngine"><option value="InnoDB" selected>InnoDB</option><option value="MyISAM">MyISAM</option><option value="MEMORY">MEMORY</option></select>
+      </div>
+      <div class="form-field" id="newTblCharsetWrap"><label class="form-label">字元集</label>
+        <select class="fi" id="newTblCharset"><option value="utf8mb4" selected>utf8mb4</option><option value="utf8">utf8</option><option value="latin1">latin1</option></select>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:11px;color:var(--text3);font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase">欄位定義</span>
+    </div>
+    <!-- COLUMN HEADER -->
+    <div style="display:grid;grid-template-columns:130px 110px 60px 1fr 1fr 1fr 1fr 1fr 24px;gap:5px;padding:0 10px;margin-bottom:2px">
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">欄位名稱</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">類型</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">長度</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">預設值</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">PK</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">AI</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">NOT NULL</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">UNIQUE</span>
+      <span></span>
+    </div>
+    <div class="col-builder" id="colBuilder"></div>
+    <div class="col-add-btn" onclick="addColRow()">＋ 新增欄位</div>
+  </div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('newTblOverlay')">取消</button><button class="btn btn-primary" onclick="createTable()">建立資料表</button></div>
+</div></div>
+
+<!-- RENAME TABLE -->
+<div class="overlay" id="renameTblOverlay" onclick="closeOverlay('renameTblOverlay',event)">
+<div class="modal sm">
+  <div class="mhead"><h3>重新命名資料表</h3><button class="mclose" onclick="closeModal('renameTblOverlay')">✕</button></div>
+  <div class="mbody">
+    <div class="form-field"><label class="form-label">原名稱</label><input class="fi" id="renameTblOld" readonly style="opacity:.6"></div>
+    <div class="form-field"><label class="form-label">新名稱 <span class="req">*</span></label><input class="fi" id="renameTblNew" placeholder="輸入新名稱"></div>
+  </div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('renameTblOverlay')">取消</button><button class="btn btn-primary" onclick="renameTable()">確認更名</button></div>
+</div></div>
+
+<!-- TRUNCATE / DROP TABLE CONFIRM -->
+<div class="overlay" id="dangerTblOverlay" onclick="closeOverlay('dangerTblOverlay',event)">
+<div class="modal sm">
+  <div class="mhead"><h3 id="dangerTblTitle">確認操作</h3><button class="mclose" onclick="closeModal('dangerTblOverlay')">✕</button></div>
+  <div class="mbody"><p id="dangerTblMsg" style="color:var(--text2);font-size:13px;line-height:1.6"></p></div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('dangerTblOverlay')">取消</button><button class="btn btn-danger" id="dangerTblBtn">確認</button></div>
+</div></div>
+
+<!-- ADD / EDIT COLUMN -->
+<div class="overlay" id="colOverlay" onclick="closeOverlay('colOverlay',event)">
+<div class="modal">
+  <div class="mhead"><h3 id="colModalTitle">新增欄位</h3><button class="mclose" onclick="closeModal('colOverlay')">✕</button></div>
+  <div class="mbody">
+    <div class="form-row">
+      <div class="form-field"><label class="form-label">欄位名稱 <span class="req">*</span></label><input class="fi" id="colName" placeholder="例：email"></div>
+      <div class="form-field"><label class="form-label">資料類型 <span class="req">*</span></label>
+        <select class="fi" id="colType" onchange="onColTypeChange()">
+          <optgroup label="數字"><option>INT</option><option>BIGINT</option><option>TINYINT</option><option>SMALLINT</option><option>FLOAT</option><option>DOUBLE</option><option>DECIMAL</option></optgroup>
+          <optgroup label="字串"><option selected>VARCHAR</option><option>CHAR</option><option>TEXT</option><option>MEDIUMTEXT</option><option>LONGTEXT</option></optgroup>
+          <optgroup label="日期時間"><option>DATE</option><option>DATETIME</option><option>TIMESTAMP</option><option>TIME</option></optgroup>
+          <optgroup label="其他"><option>BOOLEAN</option><option>JSON</option><option>BLOB</option><option>ENUM</option></optgroup>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label class="form-label">長度 / 精度</label><input class="fi" id="colLength" placeholder="例：255"></div>
+      <div class="form-field"><label class="form-label">預設值</label><input class="fi" id="colDefault" placeholder="NULL / CURRENT_TIMESTAMP / 值"></div>
+    </div>
+    <div class="form-field"><label class="form-label">備註 Comment</label><input class="fi" id="colComment" placeholder="可選"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:4px">
+      <label class="col-flag"><input type="checkbox" id="colNN"> NOT NULL</label>
+      <label class="col-flag"><input type="checkbox" id="colAI"> AUTO_INCREMENT</label>
+      <label class="col-flag"><input type="checkbox" id="colUnsigned"> UNSIGNED</label>
+      <label class="col-flag"><input type="checkbox" id="colPK"> PRIMARY KEY</label>
+      <label class="col-flag"><input type="checkbox" id="colUnique"> UNIQUE</label>
+    </div>
+    <div class="form-row" id="colPosRow">
+      <div class="form-field"><label class="form-label">位置</label>
+        <select class="fi" id="colPosition">
+          <option value="">最後（預設）</option><option value="first">最前（FIRST）</option><option value="after">在某欄位之後</option>
+        </select>
+      </div>
+      <div class="form-field" id="colAfterWrap" style="display:none"><label class="form-label">在哪個欄位之後</label><input class="fi" id="colAfter" placeholder="欄位名稱"></div>
+    </div>
+    <input type="hidden" id="colOldName">
+  </div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('colOverlay')">取消</button><button class="btn btn-primary" id="colSubmitBtn" onclick="submitColumn()">新增欄位</button></div>
+</div></div>
+
+<!-- ADD INDEX -->
+<div class="overlay" id="idxOverlay" onclick="closeOverlay('idxOverlay',event)">
+<div class="modal sm">
+  <div class="mhead"><h3>新增索引</h3><button class="mclose" onclick="closeModal('idxOverlay')">✕</button></div>
+  <div class="mbody">
+    <div class="form-field"><label class="form-label">索引名稱 <span class="req">*</span></label><input class="fi" id="idxName" placeholder="例：idx_email"></div>
+    <div class="form-field"><label class="form-label">欄位（多欄位用逗號分隔）<span class="req">*</span></label><input class="fi" id="idxCols" placeholder="例：email 或 last_name,first_name"></div>
+    <label class="col-flag" style="margin-top:4px"><input type="checkbox" id="idxUnique"> UNIQUE 索引</label>
+  </div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('idxOverlay')">取消</button><button class="btn btn-primary" onclick="submitIndex()">新增索引</button></div>
+</div></div>
+
+<!-- INSERT / EDIT ROW -->
+<div class="overlay" id="rowOverlay" onclick="closeOverlay('rowOverlay',event)">
+<div class="modal">
+  <div class="mhead"><h3 id="rowModalTitle">新增資料</h3><button class="mclose" onclick="closeModal('rowOverlay')">✕</button></div>
+  <div class="mbody" id="rowModalBody"></div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('rowOverlay')">取消</button><button class="btn btn-primary" id="rowSubmitBtn" onclick="submitRow()">確認</button></div>
+</div></div>
+
+<!-- DELETE ROW CONFIRM -->
+<div class="overlay" id="delRowOverlay" onclick="closeOverlay('delRowOverlay',event)">
+<div class="modal sm">
+  <div class="mhead"><h3>確認刪除</h3><button class="mclose" onclick="closeModal('delRowOverlay')">✕</button></div>
+  <div class="mbody"><p style="color:var(--text2);font-size:13px">確定要刪除這筆資料嗎？此操作無法復原。</p></div>
+  <div class="mfoot"><button class="btn btn-secondary" onclick="closeModal('delRowOverlay')">取消</button><button class="btn btn-danger" id="delRowBtn">刪除</button></div>
+</div></div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────
+const S = {
+  config:null, dbType:'mysql', currentDb:null, currentTable:null,
+  columns:[], pkCol:null,
+  total:0, page:1, pageSize:50, search:'',
+  sqlMode:false, currentTab:'data',
+  rowModalMode:null, editRow:null,
+  colModalMode:null,
+};
+let colRowCount = 0;
+
+// ─── API ──────────────────────────────────────────────
+async function api(ep, body={}) {
+  const prefix = S.dbType==='pg' ? '/api/pg/' : '/api/';
+  const r = await fetch(`${prefix}${ep}`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ config:S.config, ...body }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error||'未知錯誤');
+  return j;
+}
+
+// ─── HISTORY ────────────────────────────────────────────
+const HIST_KEY = 'bobo_conn_history';
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); } catch{ return []; } }
+function saveHistory(cfg) {
+  const list = loadHistory().filter(h => !(h.host===cfg.host && String(h.port)===String(cfg.port) && h.user===cfg.user && h.dbType===S.dbType));
+  list.unshift({ host:cfg.host, port:cfg.port, user:cfg.user, database:cfg.database||'', dbType:S.dbType, savedAt:Date.now() });
+  localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0,20)));
+  renderHistory();
+}
+function clearHistory() { localStorage.removeItem(HIST_KEY); renderHistory(); }
+function deleteHistoryItem(idx) {
+  const list = loadHistory(); list.splice(idx,1);
+  localStorage.setItem(HIST_KEY, JSON.stringify(list)); renderHistory();
+}
+function renderHistory() {
+  const list = loadHistory();
+  const el = id('historyList');
+  if (!list.length) { el.innerHTML='<div class="empty" style="padding:30px 20px;"><p>尚無連線紀錄</p></div>'; return; }
+  el.innerHTML = list.map((h,i)=>{
+    const db = h.database ? ` / ${h.database}` : '';
+    return `<div class="history-item" onclick="fillFromHistory(${i})">
+      <div class="history-item-info">
+        <div class="history-item-host">
+          <span style="font-size:9px;padding:1px 5px;border-radius:4px;margin-right:4px;font-weight:700;background:${h.dbType==='pg'?'rgba(100,149,237,.25)':'rgba(0,229,160,.15)'};color:${h.dbType==='pg'?'#6495ed':'var(--accent)'}">${h.dbType==='pg'?'PG':'MY'}</span>${h.user}@${h.host}:${h.port}
+        </div>
+        <div class="history-item-meta">${db||'（全部）'}</div>
+      </div>
+      <span class="history-item-time">${fmtAgo(h.savedAt)}</span>
+      <button class="btn-icon d history-del" title="刪除" onclick="event.stopPropagation();deleteHistoryItem(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+function fillFromHistory(idx) {
+  const h = loadHistory()[idx]; if (!h) return;
+  setDbType(h.dbType||'mysql');
+  id('cfgHost').value=h.host; id('cfgPort').value=h.port;
+  id('cfgUser').value=h.user; id('cfgDb').value=h.database||''; id('cfgPass').value='';
+  id('cfgPass').focus();
+  toast('已填入連線資訊，請輸入密碼後連接','ok');
+}
+function setDbType(type) {
+  S.dbType = type;
+  const isMysql = type==='mysql';
+  id('btnTypeMySQL').className = isMysql ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+  id('btnTypePG').className    = isMysql ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
+  id('cfgPort').value          = isMysql ? '3306' : '5432';
+  id('cfgUser').value          = isMysql ? 'root' : 'postgres';
+  id('cfgDbLabel').textContent = isMysql ? '預設資料庫（選填）' : '資料庫 Database（必填）';
+  id('cfgDb').placeholder      = isMysql ? '不填則列出全部' : 'postgres';
+  id('cfgSslWrap').classList.toggle('hidden', isMysql);
+  // update sidebar label
+  const lbl = id('sidebarDbTypeLabel');
+  if (lbl) { lbl.textContent = isMysql ? 'MySQL 資料庫' : 'PostgreSQL Schema'; }
+}
+function fmtAgo(ts) {
+  const s=Math.floor((Date.now()-ts)/1000);
+  if(s<60) return s+'秒前'; if(s<3600) return Math.floor(s/60)+'分前';
+  if(s<86400) return Math.floor(s/3600)+'小時前'; return Math.floor(s/86400)+'天前';
+}
+function goHome() {
+  if (S.config) {
+    id('cfgHost').value=S.config.host||'localhost'; id('cfgPort').value=S.config.port||3306;
+    id('cfgUser').value=S.config.user||''; id('cfgDb').value=S.config.database||''; id('cfgPass').value='';
+  }
+  const prevType = S.dbType;
+  Object.assign(S,{config:null,currentDb:null,currentTable:null,columns:[],pkCol:null});
+  S.dbType = prevType;
+  id('connDot').className='conn-dot'; id('connLabel').textContent='未連接';
+  hide('disconnBtn'); hide('switchConnBtn'); hide('btnNewDb'); hide('btnRefresh');
+  id('connectPanel').classList.remove('hidden');
+  id('tablePanel').classList.add('hidden');
+  id('sidebarList').innerHTML='<div class="empty" style="padding:36px 16px"><p style="font-size:11px">連線後顯示</p></div>';
+  renderHistory();
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  renderHistory();
+  setDbType('mysql'); // 預設 MySQL
+});
+
+// ─── CONNECT ──────────────────────────────────────────
+async function connect() {
+  const btn = id('connectBtn');
+  if(S.dbType==='pg' && !id('cfgDb').value.trim()){
+    return toast('PostgreSQL 請填寫資料庫名稱（Database）','warn');
+  }
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> 連接中...';
+  try {
+    S.config = {
+      host    : id('cfgHost').value.trim()||'localhost',
+      port    : id('cfgPort').value||(S.dbType==='pg'?5432:3306),
+      user    : id('cfgUser').value.trim(),
+      password: id('cfgPass').value,
+      database: id('cfgDb').value.trim()||undefined,
+      ssl     : id('cfgSsl')?.checked||false,
+    };
+    const { version, user } = await api('connect');
+    saveHistory(S.config);
+    toast(`✓ 已連接 MySQL ${version} — ${user}`,'ok');
+    id('connDot').className='conn-dot on';
+    const typeBadge = S.dbType==='pg'
+      ? '<span class="dbtype-badge dbtype-pg">🐘 PG</span>'
+      : '<span class="dbtype-badge dbtype-mysql">🐬 MY</span>';
+    id('connLabel').innerHTML=`${typeBadge} ${S.config.user}@${S.config.host}`;
+    show('disconnBtn'); show('switchConnBtn'); show('btnNewDb'); show('btnRefresh');
+    const lbl=id('sidebarDbTypeLabel');
+    if(lbl) lbl.textContent = S.dbType==='pg' ? 'PostgreSQL Schema' : 'MySQL 資料庫';
+    id('connectPanel').classList.add('hidden');
+    id('tablePanel').classList.remove('hidden');
+    await loadDatabases();
+    // 如果有指定預設資料庫，自動展開該資料庫
+    if (S.config.database) {
+      const box = id('dbt-' + q(S.config.database));
+      if (box) {
+        const dbHeader = box.previousElementSibling;
+        if (dbHeader && dbHeader.classList.contains('db-header')) {
+          await toggleDb(dbHeader, S.config.database);
+        }
+      }
+    }
+  } catch(e){ toast('連線失敗：'+e.message,'err'); }
+  finally { btn.disabled=false; btn.innerHTML='🔌 連接資料庫'; }
+}
+
+function disconnect() {
+  Object.assign(S,{config:null,currentDb:null,currentTable:null,columns:[],pkCol:null});
+  id('connDot').className='conn-dot';
+  id('connLabel').textContent='未連接';
+  hide('disconnBtn'); hide('switchConnBtn'); hide('btnNewDb'); hide('btnRefresh');
+  id('connectPanel').classList.remove('hidden');
+  id('tablePanel').classList.add('hidden');
+  id('sidebarList').innerHTML='<div class="empty" style="padding:36px 16px"><p style="font-size:11px">連線後顯示</p></div>';
+  const lbl=id('sidebarDbTypeLabel'); if(lbl) lbl.textContent='資料庫';
+  renderHistory();
+}
+
+// ─── DATABASES ────────────────────────────────────────
+async function loadDatabases() {
+  try {
+    const { databases } = await api('databases');
+    const list = id('sidebarList');
+    if (!databases.length) { list.innerHTML='<div class="empty" style="padding:36px 16px"><p>無資料庫</p></div>'; return; }
+    list.innerHTML = databases.map(db=>`
+      <div class="db-group">
+        <div class="db-header" data-db="${h(db)}" onclick="toggleDb(this,this.dataset.db)">
+          <span class="db-arrow">▸</span>
+          <span class="db-name">⬡ ${h(db)}</span>
+          <div class="db-actions">
+            <button class="btn-icon" title="新增資料表" onclick="e(event);openNewTblModal(this.closest('.db-header').dataset.db)">＋</button>
+            <button class="btn-icon d" title="刪除資料庫" onclick="e(event);openDropDbModal(this.closest('.db-header').dataset.db)">✕</button>
+          </div>
+        </div>
+        <div id="dbt-${q(db)}" data-db="${h(db)}" data-loaded="0" style="display:none"></div>
+      </div>`).join('');
+    if (databases.length===1) toggleDb(list.querySelector('.db-header'), databases[0]);
+  } catch(err){ toast('載入資料庫失敗：'+err.message,'err'); }
+}
+
+async function toggleDb(el, db) {
+  const arrow = el.querySelector('.db-arrow');
+  const box   = id(`dbt-${q(db)}`);
+  const open  = arrow.classList.contains('open');
+  if (open) { arrow.classList.remove('open'); box.style.display='none'; return; }
+  arrow.classList.add('open'); box.style.display='';
+  if (box.dataset.loaded==='0') await loadTables(db);
+}
+
+async function loadTables(db) {
+  const box = id(`dbt-${q(db)}`);
+  box.innerHTML='<div style="padding:6px 34px;font-size:11px;color:var(--text3)">載入中...</div>';
+  try {
+    const { tables } = await api('tables', { database:db });
+    box.dataset.loaded='1';
+    if (!tables.length) { box.innerHTML='<div style="padding:6px 34px;font-size:11px;color:var(--text3)">（空資料庫）</div>'; return; }
+    box.innerHTML = tables.map(t=>`
+      <div class="tbl-row" id="ti-${q(db)}-${q(t.TABLE_NAME)}" data-db="${h(db)}" data-tbl="${h(t.TABLE_NAME)}"
+           onclick="loadTable(this.dataset.db,this.dataset.tbl)">
+        <span>▤</span><span style="flex:1">${h(t.TABLE_NAME)}</span>
+        <div class="tbl-actions">
+          <button class="btn-icon" title="重新命名" onclick="e(event);openRenameTblModal(this.closest('.tbl-row').dataset.db,this.closest('.tbl-row').dataset.tbl)">✎</button>
+          <button class="btn-icon d" title="清空資料表" onclick="e(event);openTruncateTblModal(this.closest('.tbl-row').dataset.db,this.closest('.tbl-row').dataset.tbl)">⌀</button>
+          <button class="btn-icon d" title="刪除資料表" onclick="e(event);openDropTblModal(this.closest('.tbl-row').dataset.db,this.closest('.tbl-row').dataset.tbl)">✕</button>
+        </div>
+      </div>`).join('');
+  } catch(err){ box.innerHTML=`<div style="padding:6px 34px;font-size:11px;color:var(--danger)">${err.message}</div>`; }
+}
+
+// ─── LOAD TABLE ───────────────────────────────────────
+async function loadTable(db, table) {
+  document.querySelectorAll('.tbl-row').forEach(el=>el.classList.remove('active'));
+  const ti = id(`ti-${q(db)}-${q(table)}`);
+  if (ti) ti.classList.add('active');
+  S.currentDb=db; S.currentTable=table; S.page=1; S.search=''; S.sqlMode=false;
+  id('searchInput').value='';
+  id('curTblName').textContent=`${db}.${table}`;
+  const qDb = S.dbType==='pg' ? `"${db}"` : `\`${db}\``;
+  const qTbl = S.dbType==='pg' ? `"${table}"` : `\`${table}\``;
+  id('sqlEditor').value=`SELECT * FROM ${qDb}.${qTbl} LIMIT 100;`;
+  id('sqlResultBar').classList.add('hidden');
+  try {
+    const {columns} = await api('columns',{database:db,table});
+    S.columns=columns;
+    S.pkCol=(columns.find(c=>c.Key==='PRI')||columns[0])?.Field||null;
+  } catch(err){ toast('載入欄位失敗：'+err.message,'err'); return; }
+  switchTab(S.currentTab);
+}
+
+// ─── TABS ─────────────────────────────────────────────
+function switchTab(tab) {
+  S.currentTab=tab;
+  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.add('hidden'));
+  id(`tab-${tab}`).classList.remove('hidden');
+  if (!S.currentTable) return;
+  if (tab==='data')      fetchRows();
+  if (tab==='structure') loadStructure();
+  if (tab==='indexes')   loadIndexes();
+  if (tab==='ddl')       loadDDL();
+}
+
+// ─── DATA TAB ─────────────────────────────────────────
+async function fetchRows() {
+  setLoading(true);
+  try {
+    const {rows,total} = await api('rows',{database:S.currentDb,table:S.currentTable,page:S.page,pageSize:S.pageSize,search:S.search});
+    S.total=total;
+    id('tblCount').textContent=`${total} 筆`;
+    renderRows(rows, S.columns);
+    renderPag();
+  } catch(e){ toast('載入資料失敗：'+e.message,'err'); }
+  setLoading(false);
+}
+
+let searchT;
+function onSearch(){ clearTimeout(searchT); searchT=setTimeout(()=>{ S.search=id('searchInput').value; S.page=1; if(!S.sqlMode) fetchRows(); },300); }
+
+function renderRows(rows, cols) {
+  if (!rows.length && !cols.length) { id('dataWrap').innerHTML=emptyTbl(); return; }
+  let html=`<table class="dtable"><thead><tr>`;
+  cols.forEach(col=>{
+    const pk=col.Key==='PRI';
+    const t=(col.Type||'').split('(')[0];
+    html+=`<th class="${pk?'pk':''}">${h(col.Field||col)}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">${t}</span></th>`;
+  });
+  html+=`<th>操作</th></tr></thead><tbody>`;
+  rows.forEach(row=>{
+    const arr = Array.isArray(row)?row:cols.map(c=>row[c.Field||c]);
+    const obj = {}; cols.forEach((c,i)=>obj[c.Field||c]=arr[i]);
+    html+=`<tr>`;
+    arr.forEach((v,i)=>{
+      const pk=(cols[i]?.Key||'')===`PRI`;
+      const isNull=v===null||v===undefined;
+      html+=`<td class="${pk?'pk-v':''} ${isNull?'null-v':''}" title="${isNull?'NULL':h(String(v))}">${isNull?'<em>NULL</em>':h(String(v))}</td>`;
+    });
+    const rj=encodeURIComponent(JSON.stringify(obj));
+    html+=`<td class="act-cell"><div class="row-act">
+      <button class="btn-icon" title="編輯" onclick="openEditRowModal('${rj}')">✎</button>
+      <button class="btn-icon d" title="刪除" onclick="openDelRowModal('${rj}')">✕</button>
+    </div></td></tr>`;
+  });
+  html+=`</tbody></table>`;
+  id('dataWrap').innerHTML=html;
+}
+
+function renderPag(){
+  const t=S.total, ps=S.pageSize, p=S.page;
+  const tp=Math.max(1,Math.ceil(t/ps));
+  const el=id('pag');
+  if (tp<=1&&t<=ps){el.classList.add('hidden');return;}
+  el.classList.remove('hidden');
+  const pgs=pageNums(p,tp);
+  el.innerHTML=`<button class="pg-btn" ${p<=1?'disabled':''} onclick="goPage(${p-1})">‹</button>
+    ${pgs.map(pg=>pg==='...'?`<span style="padding:0 3px;color:var(--text3)">…</span>`:`<button class="pg-btn ${pg===p?'cur':''}" onclick="goPage(${pg})">${pg}</button>`).join('')}
+    <button class="pg-btn" ${p>=tp?'disabled':''} onclick="goPage(${p+1})">›</button>
+    <span class="pg-info">第${(p-1)*ps+1}–${Math.min(p*ps,t)}筆 / 共${t}筆</span>`;
+}
+function pageNums(c,t){if(t<=7)return Array.from({length:t},(_,i)=>i+1);const p=[1];if(c>3)p.push('...');for(let i=Math.max(2,c-1);i<=Math.min(t-1,c+1);i++)p.push(i);if(c<t-2)p.push('...');p.push(t);return p;}
+function goPage(p){S.page=p;fetchRows();}
+
+// ─── SQL ──────────────────────────────────────────────
+async function runSQL(){
+  const sql=id('sqlEditor').value.trim(); if(!sql)return;
+  setLoading(true);
+  try {
+    const result = await api('sql',{database:S.currentDb,sql});
+    switchTab('data');
+    if (result.type==='select') {
+      S.sqlMode=true;
+      const fakeCols=result.columns.map(c=>({Field:c,Key:'',Type:''}));
+      const fakeRows=result.rows.map(r=>result.columns.map(c=>r[c]));
+      id('sqlResultBar').textContent=`查詢結果 — ${result.rows.length} 筆`;
+      id('sqlResultBar').classList.remove('hidden');
+      id('pag').classList.add('hidden');
+      id('tblCount').textContent=`${result.rows.length} 筆`;
+      renderRows(fakeRows,fakeCols);
+    } else {
+      // 寫入型 SQL (INSERT/UPDATE/DELETE/CREATE/DROP...)
+      S.sqlMode=false;
+      id('sqlResultBar').classList.add('hidden');
+      id('dataWrap').innerHTML=`<div class="sql-write-result">
+        <div style="font-size:18px;margin-bottom:8px">✓</div>
+        <div style="color:var(--text);margin-bottom:4px">${result.message}</div>
+        ${result.insertId ? `<div style="color:var(--text3)">INSERT ID: ${result.insertId}</div>` : ''}
+      </div>`;
+      id('pag').classList.add('hidden');
+      id('tblCount').textContent='';
+      toast(result.message,'ok');
+      // 若目前有選取資料表，自動重新載入資料
+      if (S.currentTable) { const _tbl=S.currentTable; setTimeout(()=>{ if(S.currentTable===_tbl&&!S.sqlMode) fetchRows(); },800); }
+    }
+  } catch(e){toast('SQL 錯誤：'+e.message,'err');}
+  setLoading(false);
+}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&document.activeElement?.id==='sqlEditor')runSQL();});
+
+// ─── STRUCTURE TAB ────────────────────────────────────
+async function loadStructure(){
+  if (!S.currentTable){id('structWrap').innerHTML=emptyStruct();return;}
+  try {
+    const {columns}=await api('columns',{database:S.currentDb,table:S.currentTable});
+    S.columns=columns;
+    S.pkCol=(columns.find(c=>c.Key==='PRI')||columns[0])?.Field||null;
+    let html=`<div class="section-head">
+      <span class="section-title">欄位結構 — ${h(S.currentTable)}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" onclick="openAddColModal()">＋ 新增欄位</button>
+      </div>
+    </div>
+    <table class="stbl"><thead><tr>
+      <th>欄位名稱</th><th>類型</th><th>Null</th><th>索引</th><th>預設值</th><th>額外</th><th>備註</th><th>操作</th>
+    </tr></thead><tbody>`;
+    columns.forEach(col=>{
+      const badges=[];
+      if(col.Key==='PRI') badges.push(`<span class="badge badge-pk">PK</span>`);
+      if(col.Key==='UNI') badges.push(`<span class="badge badge-uni">UNI</span>`);
+      if(col.Key==='MUL') badges.push(`<span class="badge badge-mul">IDX</span>`);
+      const nn=col.Null==='NO'?`<span class="badge badge-nn">NN</span>`:'';
+      const ai=col.Extra?.includes('auto_increment')?`<span class="badge badge-ai">AI</span>`:'';
+      const cj=encodeURIComponent(JSON.stringify(col));
+      html+=`<tr>
+        <td style="color:var(--text)">${h(col.Field)}</td>
+        <td>${h(col.Type)}</td>
+        <td>${nn||'<span style="color:var(--text3)">YES</span>'}</td>
+        <td>${badges.join(' ')||'—'}</td>
+        <td style="color:var(--text3)">${col.Default===null?'<em>NULL</em>':h(String(col.Default))}</td>
+        <td>${ai||'—'}</td>
+        <td style="color:var(--text3)">${h(col.Comment||'')}</td>
+        <td class="act-cell"><div class="row-act">
+          <button class="btn-icon" title="編輯欄位" data-cj="${h(cj)}" onclick="openEditColModal(this.dataset.cj)">✎</button>
+          <button class="btn-icon d" title="刪除欄位" data-col="${h(col.Field)}" onclick="dropColumn(this.dataset.col)">✕</button>
+        </div></td></tr>`;
+    });
+    html+=`</tbody></table>`;
+    id('structWrap').innerHTML=html;
+  } catch(e){toast('載入結構失敗：'+e.message,'err');}
+}
+
+// ─── INDEXES TAB ──────────────────────────────────────
+async function loadIndexes(){
+  if (!S.currentTable){id('idxWrap').innerHTML=emptyStruct();return;}
+  try {
+    const {indexes}=await api('indexes',{database:S.currentDb,table:S.currentTable});
+    let html=`<div class="section-head">
+      <span class="section-title">索引 — ${h(S.currentTable)}</span>
+      <button class="btn btn-primary btn-sm" onclick="openIdxModal()">＋ 新增索引</button>
+    </div>
+    <table class="stbl"><thead><tr>
+      <th>索引名稱</th><th>欄位</th><th>類型</th><th>Unique</th><th>Cardinality</th><th>操作</th>
+    </tr></thead><tbody>`;
+    const grouped={};
+    indexes.forEach(r=>{
+      if (!grouped[r.Key_name]) grouped[r.Key_name]=[];
+      grouped[r.Key_name].push(r);
+    });
+    Object.entries(grouped).forEach(([name,rows])=>{
+      const first=rows[0];
+      const cols=rows.sort((a,b)=>a.Seq_in_index-b.Seq_in_index).map(r=>h(r.Column_name)).join(', ');
+      const type=name==='PRIMARY'?`<span class="badge badge-pk">PRIMARY</span>`:first.Non_unique===0?`<span class="badge badge-uni">UNIQUE</span>`:'-';
+      const canDrop=name!=='PRIMARY';
+      html+=`<tr>
+        <td style="color:var(--text)">${h(name)}</td>
+        <td>${cols}</td>
+        <td>${type}</td>
+        <td>${first.Non_unique===0?'✓':'—'}</td>
+        <td style="color:var(--text3)">${first.Cardinality??'—'}</td>
+        <td class="act-cell">${canDrop?`<div class="row-act"><button class="btn-icon d" data-idx="${h(name)}" onclick="dropIndex(this.dataset.idx)">✕</button></div>`:'—'}</td></tr>`;
+    });
+    if (!Object.keys(grouped).length) html+=`<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3)">無索引</td></tr>`;
+    html+=`</tbody></table>`;
+    id('idxWrap').innerHTML=html;
+  } catch(e){toast('載入索引失敗：'+e.message,'err');}
+}
+
+// ─── DDL TAB ──────────────────────────────────────────
+async function loadDDL(){
+  if (!S.currentTable){id('ddlWrap').innerHTML=emptyStruct();return;}
+  try {
+    const {ddl}=await api('table/ddl',{database:S.currentDb,table:S.currentTable});
+    id('ddlWrap').innerHTML=`
+      <div class="section-head">
+        <span class="section-title">CREATE TABLE — ${h(S.currentTable)}</span>
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(ddl)}).then(()=>toast('已複製','ok'))">複製</button>
+      </div>
+      <div class="ddl-box">${h(ddl)}</div>`;
+  } catch(e){toast('載入 DDL 失敗：'+e.message,'err');}
+}
+
+// ─── ROW INSERT / EDIT ────────────────────────────────
+function openInsertModal(){
+  if(!S.currentTable)return toast('請先選擇資料表','warn');
+  S.rowModalMode='insert'; S.editRow=null;
+  id('rowModalTitle').textContent=`新增資料 — ${S.currentTable}`;
+  id('rowSubmitBtn').textContent='新增';
+  id('rowModalBody').innerHTML=S.columns.map(col=>{
+    const isPK=col.Key==='PRI';
+    return `<div class="form-field">
+      <label class="form-label">${h(col.Field)}${isPK?'<span class="req"> PK</span>':''} <span style="color:var(--text3);font-weight:400">${col.Type}</span></label>
+      <input class="fi" id="rf-${col.Field}" type="text" placeholder="${col.Default??''}">
+    </div>`;
+  }).join('');
+  openModal('rowOverlay');
+}
+function openEditRowModal(rj){
+  const row=JSON.parse(decodeURIComponent(rj));
+  S.rowModalMode='edit'; S.editRow=row;
+  id('rowModalTitle').textContent=`編輯資料 — ${S.currentTable}`;
+  id('rowSubmitBtn').textContent='儲存';
+  id('rowModalBody').innerHTML=S.columns.map(col=>{
+    const isPK=col.Key==='PRI';
+    const v=row[col.Field]===null?'':row[col.Field]??'';
+    return `<div class="form-field">
+      <label class="form-label">${h(col.Field)}${isPK?'<span class="req"> PK</span>':''} <span style="color:var(--text3);font-weight:400">${col.Type}</span></label>
+      <input class="fi" id="rf-${col.Field}" type="text" value="${h(String(v))}" ${isPK?'readonly':''}/>
+    </div>`;
+  }).join('');
+  openModal('rowOverlay');
+}
+async function submitRow(){
+  const btn=id('rowSubmitBtn'); btn.disabled=true;
+  try {
+    const data={};
+    S.columns.forEach(col=>{ const el=id(`rf-${col.Field}`); if(el){ const v=el.value; data[col.Field]=v===''?null:v; } });
+    if (S.rowModalMode==='insert'){
+      const {insertId}=await api('insert',{database:S.currentDb,table:S.currentTable,data});
+      toast(`新增成功，ID = ${insertId}`,'ok');
+    } else {
+      const where={[S.pkCol]:S.editRow[S.pkCol]};
+      const upd={...data}; delete upd[S.pkCol];
+      await api('update',{database:S.currentDb,table:S.currentTable,data:upd,where});
+      toast('更新成功','ok');
+    }
+    closeModal('rowOverlay'); fetchRows();
+  } catch(e){toast('操作失敗：'+e.message,'err');}
+  btn.disabled=false;
+}
+
+function openDelRowModal(rj){
+  const row=JSON.parse(decodeURIComponent(rj));
+  id('delRowBtn').onclick=async()=>{
+    try {
+      await api('delete',{database:S.currentDb,table:S.currentTable,where:{[S.pkCol]:row[S.pkCol]}});
+      toast('已刪除','ok'); closeModal('delRowOverlay'); fetchRows();
+    } catch(e){toast('刪除失敗：'+e.message,'err');}
+  };
+  openModal('delRowOverlay');
+}
+
+// ─── DATABASE DDL ─────────────────────────────────────
+function openNewDbModal(){
+  const isPg = S.dbType==='pg';
+  id('newDbName').value='';
+  id('newDbModalTitle').textContent = isPg ? '建立 Schema' : '建立資料庫';
+  id('newDbName').placeholder = isPg ? 'my_schema' : 'my_database';
+  id('newDbCharsetRow').classList.toggle('hidden', isPg);
+  openModal('newDbOverlay');
+}
+async function createDatabase(){
+  const name=id('newDbName').value.trim();
+  if(!name)return toast('請輸入資料庫名稱','warn');
+  try {
+    await api('database/create',{database:name,charset:id('newDbCharset').value,collation:id('newDbCollation').value});
+    toast(`資料庫 ${name} 建立成功`,'ok'); closeModal('newDbOverlay'); loadDatabases();
+  } catch(e){toast('建立失敗：'+e.message,'err');}
+}
+
+function openDropDbModal(db){
+  id('dropDbName').textContent=db;
+  id('dropDbBtn').onclick=async()=>{
+    try {
+      await api('database/drop',{database:db});
+      toast(`資料庫 ${db} 已刪除`,'ok'); closeModal('dropDbOverlay'); loadDatabases();
+      if(S.currentDb===db){S.currentDb=null;S.currentTable=null;}
+    } catch(e){toast('刪除失敗：'+e.message,'err');}
+  };
+  openModal('dropDbOverlay');
+}
+
+// ─── TABLE DDL ────────────────────────────────────────
+function openNewTblModal(db){
+  S.currentDb=db;
+  const isPg = S.dbType==='pg';
+  id('newTblDb').value=db; id('newTblName').value='';
+  id('colBuilder').innerHTML=''; colRowCount=0;
+  id('newTblEngineWrap').classList.toggle('hidden', isPg);
+  id('newTblCharsetWrap').classList.toggle('hidden', isPg);
+  addColRow({name:'id',type:'INT',notNull:true,autoIncrement:true,primaryKey:true});
+  openModal('newTblOverlay');
+}
+
+function addColRow(defaults={}){
+  colRowCount++;
+  const rid=`cr${colRowCount}`;
+  const types=['INT','BIGINT','TINYINT','SMALLINT','VARCHAR','CHAR','TEXT','MEDIUMTEXT','LONGTEXT','FLOAT','DOUBLE','DECIMAL','DATE','DATETIME','TIMESTAMP','BOOLEAN','JSON','BLOB'];
+  const typeOpts=types.map(t=>`<option ${(defaults.type||'VARCHAR')===t?'selected':''}>${t}</option>`).join('');
+  const div=document.createElement('div');
+  div.className='col-row'; div.id=rid;
+  div.style.display='grid';
+  div.style.gridTemplateColumns='130px 110px 60px 1fr 1fr 1fr 1fr 1fr 24px';
+  div.style.gap='5px';
+  // 每個欄位加 data-f 屬性，避免 querySelectorAll 順序錯誤
+  div.innerHTML=`
+    <input class="fi" data-f="name"    placeholder="欄位名稱" value="${defaults.name||''}">
+    <select class="fi" data-f="type">${typeOpts}</select>
+    <input class="fi" data-f="length"  placeholder="長度"   value="${defaults.length||''}">
+    <input class="fi" data-f="default" placeholder="預設值" value="${defaults.default||''}">
+    <label class="col-flag" style="justify-content:center"><input type="checkbox" data-f="pk"   ${defaults.primaryKey?'checked':''}></label>
+    <label class="col-flag" style="justify-content:center" title="MySQL: AUTO_INCREMENT | PG: SERIAL"><input type="checkbox" data-f="ai"   ${defaults.autoIncrement?'checked':''}></label>
+    <label class="col-flag" style="justify-content:center"><input type="checkbox" data-f="nn"   ${defaults.notNull?'checked':''}></label>
+    <label class="col-flag" style="justify-content:center"><input type="checkbox" data-f="uniq" ${defaults.unique?'checked':''}></label>
+    <button class="btn-icon d" onclick="this.closest('.col-row').remove()" style="flex-shrink:0">✕</button>`;
+  id('colBuilder').appendChild(div);
+}
+
+async function createTable(){
+  const tbl=id('newTblName').value.trim();
+  if(!tbl)return toast('請輸入資料表名稱','warn');
+  const rows=[...id('colBuilder').querySelectorAll('.col-row')];
+  if(!rows.length)return toast('請至少新增一個欄位','warn');
+  const columns=rows.map(row=>{
+    // 用 data-f 精準讀取，不受 DOM 順序影響
+    const g=f=>{const el=row.querySelector(`[data-f="${f}"]`);return el?(el.type==='checkbox'?el.checked:el.value):null;};
+    return {
+      name:         (g('name')||'').trim(),
+      type:         g('type')||'VARCHAR',
+      length:       (g('length')||'').trim(),
+      default:      (g('default')||'').trim(),
+      primaryKey:   g('pk'),
+      autoIncrement:g('ai'),
+      notNull:      g('nn'),
+      unique:       g('uniq'),
+    };
+  });
+  if(columns.some(c=>!c.name))return toast('欄位名稱不可空白','warn');
+  const btn=document.querySelector('#newTblOverlay .btn-primary');
+  if(btn)btn.disabled=true;
+  try {
+    await api('table/create',{database:S.currentDb,table:tbl,columns,engine:id('newTblEngine').value,charset:id('newTblCharset').value});
+    toast(`資料表 ${tbl} 建立成功`,'ok'); closeModal('newTblOverlay');
+    const box=id(`dbt-${q(S.currentDb)}`); if(box){ box.dataset.loaded='0'; loadTables(S.currentDb); }
+  } catch(e){toast('建立失敗：'+e.message,'err');}
+  if(btn)btn.disabled=false;
+}
+
+function openRenameTblModal(db,tbl){
+  S.currentDb=db;
+  id('renameTblOld').value=tbl; id('renameTblNew').value='';
+  openModal('renameTblOverlay');
+}
+async function renameTable(){
+  const newName=id('renameTblNew').value.trim();
+  const oldName=id('renameTblOld').value;
+  if(!newName)return toast('請輸入新名稱','warn');
+  try {
+    await api('table/rename',{database:S.currentDb,table:oldName,newName});
+    toast(`已更名為 ${newName}`,'ok'); closeModal('renameTblOverlay');
+    const box=id(`dbt-${q(S.currentDb)}`); if(box){box.dataset.loaded='0';loadTables(S.currentDb);}
+    if(S.currentTable===oldName){S.currentTable=newName;id('curTblName').textContent=`${S.currentDb}.${newName}`;}
+  } catch(e){toast('更名失敗：'+e.message,'err');}
+}
+
+function openTruncateTblModal(db,tbl){
+  S.currentDb=db;
+  id('dangerTblTitle').textContent='清空資料表';
+  id('dangerTblMsg').innerHTML=`確定要清空 <strong style="color:var(--warn)">${h(tbl)}</strong> 的所有資料嗎？<br>資料表結構保留，資料無法復原。`;
+  id('dangerTblBtn').textContent='清空';
+  id('dangerTblBtn').onclick=async()=>{
+    try { await api('table/truncate',{database:db,table:tbl}); toast(`${tbl} 已清空`,'ok'); closeModal('dangerTblOverlay'); if(S.currentTable===tbl) fetchRows(); }
+    catch(e){toast('失敗：'+e.message,'err');}
+  };
+  openModal('dangerTblOverlay');
+}
+
+function openDropTblModal(db,tbl){
+  S.currentDb=db;
+  id('dangerTblTitle').textContent='刪除資料表';
+  id('dangerTblMsg').innerHTML=`確定要刪除資料表 <strong style="color:var(--danger)">${h(tbl)}</strong> 嗎？<br>包含所有資料，<strong>無法復原</strong>。`;
+  id('dangerTblBtn').textContent='刪除資料表';
+  id('dangerTblBtn').onclick=async()=>{
+    try {
+      await api('table/drop',{database:db,table:tbl}); toast(`${tbl} 已刪除`,'ok'); closeModal('dangerTblOverlay');
+      const box=id(`dbt-${q(db)}`); if(box){box.dataset.loaded='0';loadTables(db);}
+      if(S.currentTable===tbl){S.currentTable=null;id('curTblName').textContent='—';id('dataWrap').innerHTML=emptyTbl();}
+    } catch(e){toast('刪除失敗：'+e.message,'err');}
+  };
+  openModal('dangerTblOverlay');
+}
+
+// ─── COLUMN DDL ───────────────────────────────────────
+function openAddColModal(){
+  S.colModalMode='add';
+  id('colModalTitle').textContent='新增欄位';
+  id('colSubmitBtn').textContent='新增欄位';
+  id('colName').value=''; id('colType').value='VARCHAR'; id('colLength').value='';
+  id('colDefault').value=''; id('colComment').value=''; id('colOldName').value='';
+  id('colNN').checked=false; id('colAI').checked=false; id('colUnsigned').checked=false;
+  id('colPK').checked=false; id('colUnique').checked=false;
+  id('colPosition').value=''; id('colAfter').value=''; id('colAfterWrap').style.display='none';
+  // PG 不支援 FIRST/AFTER，但留著讓後端忽略
+  id('colPosRow').classList.toggle('hidden', S.dbType==='pg');
+  openModal('colOverlay');
+}
+function openEditColModal(cj){
+  const col=JSON.parse(decodeURIComponent(cj));
+  S.colModalMode='edit';
+  id('colModalTitle').textContent='修改欄位';
+  id('colSubmitBtn').textContent='儲存';
+  id('colOldName').value=col.Field;
+  id('colName').value=col.Field;
+  // parse type
+  const m=col.Type.match(/^([a-zA-Z]+)(?:\(([^)]+)\))?(\s+unsigned)?/i);
+  id('colType').value=(m&&m[1].toUpperCase())||'VARCHAR';
+  id('colLength').value=(m&&m[2])||'';
+  id('colUnsigned').checked=!!(m&&m[3]);
+  id('colDefault').value=col.Default??'';
+  id('colComment').value=col.Comment||'';
+  id('colNN').checked=col.Null==='NO';
+  id('colAI').checked=(col.Extra||'').includes('auto_increment');
+  id('colPK').checked=col.Key==='PRI';
+  id('colUnique').checked=col.Key==='UNI';
+  hide('colPosRow');  // edit mode: no position
+  openModal('colOverlay');
+}
+function onColTypeChange(){
+  const t=id('colType').value;
+  id('colLength').disabled=['TEXT','MEDIUMTEXT','LONGTEXT','DATE','DATETIME','TIMESTAMP','BOOLEAN','JSON','BLOB'].includes(t);
+}
+id('colPosition').addEventListener('change',function(){ id('colAfterWrap').style.display=this.value==='after'?'':'none'; });
+
+async function submitColumn(){
+  const col={
+    name:id('colName').value.trim(), type:id('colType').value,
+    length:id('colLength').value.trim(), default:id('colDefault').value.trim(),
+    comment:id('colComment').value.trim(), notNull:id('colNN').checked,
+    autoIncrement:id('colAI').checked, unsigned:id('colUnsigned').checked,
+    primaryKey:id('colPK').checked, unique:id('colUnique').checked,
+  };
+  if(!col.name)return toast('請輸入欄位名稱','warn');
+  const pos=id('colPosition').value;
+  if(pos==='first') col.first=true;
+  if(pos==='after') col.after=id('colAfter').value.trim();
+  const btn=id('colSubmitBtn'); btn.disabled=true;
+  try {
+    if(S.colModalMode==='add'){
+      await api('column/add',{database:S.currentDb,table:S.currentTable,column:col});
+      toast('欄位新增成功','ok');
+    } else {
+      await api('column/modify',{database:S.currentDb,table:S.currentTable,oldName:id('colOldName').value,column:col});
+      toast('欄位修改成功','ok');
+    }
+    closeModal('colOverlay');
+    const {columns}=await api('columns',{database:S.currentDb,table:S.currentTable});
+    S.columns=columns; S.pkCol=(columns.find(c=>c.Key==='PRI')||columns[0])?.Field||null;
+    loadStructure();
+  } catch(e){toast('操作失敗：'+e.message,'err');}
+  btn.disabled=false;
+}
+
+async function dropColumn(colName){
+  if(!confirm(`確定要刪除欄位 "${colName}" 嗎？`))return;
+  try {
+    await api('column/drop',{database:S.currentDb,table:S.currentTable,column:colName});
+    toast(`欄位 ${colName} 已刪除`,'ok'); loadStructure();
+  } catch(e){toast('刪除失敗：'+e.message,'err');}
+}
+
+// ─── INDEXES ─────────────────────────────────────────
+function openIdxModal(){ id('idxName').value=''; id('idxCols').value=''; id('idxUnique').checked=false; openModal('idxOverlay'); }
+async function submitIndex(){
+  const name=id('idxName').value.trim();
+  const cols=id('idxCols').value.split(',').map(c=>c.trim()).filter(Boolean);
+  if(!name||!cols.length)return toast('請填寫索引名稱與欄位','warn');
+  try {
+    await api('index/add',{database:S.currentDb,table:S.currentTable,indexName:name,columns:cols,unique:id('idxUnique').checked});
+    toast('索引新增成功','ok'); closeModal('idxOverlay'); loadIndexes();
+  } catch(e){toast('新增失敗：'+e.message,'err');}
+}
+async function dropIndex(name){
+  if(!confirm(`確定要刪除索引 "${name}" 嗎？`))return;
+  try { await api('index/drop',{database:S.currentDb,table:S.currentTable,indexName:name}); toast('索引已刪除','ok'); loadIndexes(); }
+  catch(e){toast('刪除失敗：'+e.message,'err');}
+}
+
+// ─── MODAL UTILS ─────────────────────────────────────
+function openModal(ovId){ id(ovId).classList.add('open'); }
+function closeModal(ovId){ id(ovId).classList.remove('open'); }
+function closeOverlay(ovId,ev){ if(ev.target===id(ovId)) closeModal(ovId); }
+
+// ─── HELPERS ──────────────────────────────────────────
+function id(x){return document.getElementById(x);}
+function show(x){id(x).classList.remove('hidden');}
+function hide(x){id(x).classList.add('hidden');}
+function h(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function q(s){return String(s).replace(/[^a-zA-Z0-9_\-]/g,'_');}
+function e(ev){ev.stopPropagation();}
+function setLoading(on){id('dataWrap').style.opacity=on?'.4':'1';}
+function emptyTbl(){return`<div class="empty"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="14" width="36" height="28" rx="3"/><path d="M6 22h36M16 14V10M32 14V10"/></svg><h3>選擇資料表</h3><p>從左側點選資料表</p></div>`;}
+function emptyStruct(){return`<div class="empty"><h3>請先選擇資料表</h3></div>`;}
+function toast(msg,type='ok'){
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;
+  el.innerHTML=`<span>${type==='ok'?'✓':type==='warn'?'⚠':'✕'}</span>${msg}`;
+  id('toastWrap').appendChild(el);
+  setTimeout(()=>el.style.opacity='0',3200);
+  setTimeout(()=>el.remove(),3500);
+}
+</script>
+</body>
+</html>
